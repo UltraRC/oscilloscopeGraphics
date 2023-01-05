@@ -1,0 +1,30 @@
+TODO:
+- Writing code which plots an arbutrary number of shapes, one afer the other
+- Could send pointer to a shape, so that it can still be modified
+- Need to find a way to dynamically change which shapes are being rendered
+
+
+- Determine maximum rate of DAC output
+    o How fast can the DAC change from one voltage to another
+- Determine minium point spacing/density to generate a convincing line
+- From the above determine maximum speed.
+- Determine maximum number of points that can be sent to the DAC in a single
+  frame.
+
+
+
+
+What are we trying to achieve?
+- Draw shapes onto the screen of an analog osciloscope in XY mode by
+  moving the beam quickely between points.
+- The most fundamental shape that can be drawn is a line, all other 
+  shapes will be composed of lines.
+    o A line is drawn by quickely moving the beam to a series of 
+      evenly spaced points which span the distance from the start
+      of the line to the end.
+    o The drawing of a line has several parameters:
+        1) Starting coordinate. (XY)
+        2) Ending coordinate.   (XY)
+        3) Line point density ==> Density of points between the starting and 
+           ending point of the line.
+        4) Beam speed. ==> Units of pixles/second or points/second
