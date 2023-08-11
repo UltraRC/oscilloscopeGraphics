@@ -3,29 +3,20 @@
 
 #include <Arduino.h>
 
-#define MAX_POINTS_PER_SHAPE    255
-#define MAX_LINES               255
-
-#define X_PIN 25
-#define Y_PIN 26
-
-typedef struct point
+typedef struct
 {
-    int32_t x;
-    int32_t y;
-} point_t;
-
-typedef struct line
-{
-    point_t start_point;
-    point_t end_point;
+    int32_t start_x;
+    int32_t start_y;
+    int32_t end_x;
+    int32_t end_y;
 } line_t;
 
-void update_graphics(void);
-double distance_between_points(point_t p1, point_t p2);
-point_t lerp_points(point_t p1, point_t p2, double a);
+void graphics_update(void);
 void draw_line(int32_t x1, int32_t y1, int32_t x2, int32_t y2);
+line_t new_line(int32_t x1, int32_t y1, int32_t x2, int32_t y2);
+int32_t calculate_line_length_squared(line_t line);
 void clear_screen(void);
-
+void write_x_pixel(int32_t pos);
+void write_y_pixel(int32_t pos);
 
 #endif  // GRAPHICS_H
