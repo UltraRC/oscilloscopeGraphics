@@ -1,73 +1,231 @@
 #include "graphics.h"
+#include "DacESP32.h"
 
-#define X_PIN 25
-#define Y_PIN 26
+// Macros
+#define MAX_LINES       1024
+#define X_PIN           25
+#define Y_PIN           26
+#define X_RESOLUTION    255
+#define Y_RESOLUTION    255
 
-line_t lines[100];
+typedef struct
+{
+    double x1;
+    double x2;
+} vec2d_t;
+
+typedef struct
+{
+    vec2d_t line_start;
+    vec2d_t line_end;
+    int32_t length;
+} line_t;
+
+// Function foward decalarations
+line_t new_line(int32_t x1, int32_t y1, int32_t x2, int32_t y2);
+double vec2d_length(vec2d_t vec);
+double vec2d_distance_between(vec2d_t vec1, vec2d_t vec2);
+vec2d_t vec2d_normalise(vec2d_t vec);
+vec2d_t vec2d_subtract(vec2d_t vec1, vec2d_t vec2);
+vec2d_t vec2d_add(vec2d_t vec1, vec2d_t vec2);
+void write_x_pixel(int32_t pos);
+void write_y_pixel(int32_t pos);
+
+DacESP32 dac1((gpio_num_t)X_PIN);
+DacESP32 dac2((gpio_num_t)Y_PIN);
+
+line_t lines[MAX_LINES];
 int32_t num_lines = 0;
+
+/**
+ * @brief Draws a line between two given points.
+ * 
+ * This function draws a line between the starting point (x1, y1) and the ending point (x2, y2).
+ * 
+ * @param x1 Starting x-position.
+ * @param y1 Starting y-position.
+ * @param x2 Ending x-position.
+ * @param y2 Ending y-position.
+ * 
+ * @return int32_t 0 if drawing the line fails (due to reaching the maximum number of lines), 1 on success.
+ */
+int32_t draw_line(int32_t x1, int32_t y1, int32_t x2, int32_t y2)
+{
+    if (num_lines >= MAX_LINES)
+    {
+        return 0;
+    }
+
+    lines[num_lines] = new_line(x1, y1, x2, y2);
+    num_lines++;
+
+    return 1;
+}
+
+
+line_t new_line(int32_t x1, int32_t y1, int32_t x2, int32_t y2)
+{
+    // Define the start of the line
+    vec2d_t line_start = 
+    {
+        .x1 = x1,
+        .x2 = y1
+    };
+    
+    // Defie the end of the line
+    vec2d_t line_end = 
+    {
+        .x1 = x2,
+        .x2 = y2        
+    };
+    
+    // Make a line object
+    line_t line = 
+    {
+        .line_start = line_start,
+        .line_end   = line_end
+    };
+
+    // Set the length of the line
+    double line_length = vec2d_distance_between(line.line_start, line.line_end);
+    line.length = line_length;
+
+    return line;
+}
+
+/**
+ * @brief Clears the screen by resetting the number of lines.
+ * 
+ * This function clears the screen by resetting the count of lines to zero.
+ */
+void clear_screen(void)
+{
+    num_lines = 0;
+}
 
 void graphics_update(void)
 {
 
     for(int32_t line_index=0; line_index<num_lines; line_index++)
     {
-        line_t line_to_draw = lines[line_index];                                    // The current line being drawn
-        int32_t line_length_squared = calculate_line_length_squared(line_to_draw);  // The length of the current line being drawn
-        int32_t increment_length = 10;                                               // The distance the beam increments along a line being drawn
+        // Select the next line to draw
+        line_t line_to_draw = lines[line_index];
 
-        int32_t x_increment = increment_length*(line_to_draw.end_x - line_to_draw.start_x) / sqrt(line_length_squared);
-        int32_t y_increment = increment_length*(line_to_draw.end_y - line_to_draw.start_y) / sqrt(line_length_squared);
+        // Incrementally move the laser from the start to the end of the line                                       // ~7 us
+        vec2d_t draw_direction = vec2d_normalise(vec2d_subtract(line_to_draw.line_end, line_to_draw.line_start));
 
+        vec2d_t laser_position = line_to_draw.line_start;
 
-        int32_t drawn_length = 0;
-        int32_t current_x = line_to_draw.start_x;
-        int32_t current_y = line_to_draw.start_y;
-
-        while(calculate_line_length_squared(new_line(line_to_draw.start_x, line_to_draw.start_y, current_x, current_y)) < line_length_squared)
+        // Keeps advancing the position of the laser until it has drawn the fulll length of the line                // ~6 us (condition time)
+        while(vec2d_distance_between(laser_position, line_to_draw.line_start) < line_to_draw.length)
         {
-            write_x_pixel(current_x);
-            write_y_pixel(current_y);
+            double increment_length = 1;
 
-            current_x += x_increment;
-            current_y += y_increment;
+            // Write laser position to the screen                                                                   // ~40 us
+            write_x_pixel(laser_position.x1);
+            write_y_pixel(laser_position.x2);
+
+            // Advance the laser to the next position                                                               // ~1 us
+            laser_position.x1 += increment_length*draw_direction.x1;
+            laser_position.x2 += increment_length*draw_direction.x2;
+
         }
 
     }
-
 }
 
-void draw_line(int32_t x1, int32_t y1, int32_t x2, int32_t y2)
+/* ---------------- Geometry Functions ---------------- */
+void draw_center_rectangle(int32_t width, int32_t height, int32_t xpos, int32_t ypos)
 {
-    lines[num_lines] = new_line(x1, y1, x2, y2);
-    num_lines++;
+    int32_t start_xpos  = xpos - width / 2;
+    int32_t start_ypos = ypos - height / 2;
+
+    draw_line(start_xpos, start_ypos, start_xpos + width, start_ypos);
+    draw_line(start_xpos + width, start_ypos, start_xpos + width, start_ypos + height);
+    draw_line(start_xpos + width, start_ypos + height, start_xpos, start_ypos + height);
+    draw_line(start_xpos, start_ypos + height, start_xpos, start_ypos);
 }
 
-line_t new_line(int32_t x1, int32_t y1, int32_t x2, int32_t y2)
+/* ---------------- Vector Functions ---------------- */
+double vec2d_length(vec2d_t vec)
 {
-    line_t line;
-    line.start_x = x1;
-    line.start_y = y1;
-    line.end_x = x2;
-    line.end_y = y2;
-    return line;
+    return sqrt(vec.x1*vec.x1 + vec.x2*vec.x2);
 }
 
-int32_t calculate_line_length_squared(line_t line)
+double vec2d_distance_between(vec2d_t vec1, vec2d_t vec2)
 {
-    return (line.end_x-line.start_x)*(line.end_x-line.start_x) + (line.end_y-line.start_y)*(line.end_y-line.start_y);
+    vec2d_t vector = 
+    {
+        .x1 = vec1.x1 - vec2.x1,
+        .x2 = vec1.x2 - vec2.x2
+    };
+    return vec2d_length(vector);
 }
 
-void clear_screen(void)
+vec2d_t vec2d_normalise(vec2d_t vec)
 {
-    num_lines = 0;
+    // Get the length of the vector
+    double vector_length = vec2d_length(vec);
+
+    // Normalise the passed vector by its length
+    vec2d_t vector = 
+    {
+        .x1 = vec.x1 / vector_length,
+        .x2 = vec.x2 / vector_length
+    };
+
+    // Return the unit vector
+    return vector;
 }
 
+/**
+ * @brief 
+ * 
+ * @param vec1 
+ * @param vec2 
+ * @return vec2d_t vec1 - vec2
+ */
+vec2d_t vec2d_subtract(vec2d_t vec1, vec2d_t vec2)
+{
+    vec2d_t vector = 
+    {
+        vec1.x1 - vec2.x1,
+        vec1.x2 - vec2.x2
+    };
+
+    return vector;
+}
+
+vec2d_t vec2d_add(vec2d_t vec1, vec2d_t vec2)
+{
+    vec2d_t vector = 
+    {
+        vec1.x1 + vec2.x1,
+        vec1.x2 + vec2.x2
+    };
+
+    return vector;
+}
+
+/* ---------------- Hardware Interface ---------------- */
 void write_x_pixel(int32_t pos)
 {
-    dacWrite(X_PIN, pos);
+    if(pos < 0) return;
+    if(pos > X_RESOLUTION) return;
+    dac1.outputVoltage((uint8_t)pos);
 }
 
 void write_y_pixel(int32_t pos)
 {
-    dacWrite(Y_PIN, pos);
+    if(pos < 0) return;
+    if(pos > Y_RESOLUTION) return;
+    dac2.outputVoltage((uint8_t)pos);
 }
+
+
+
+// static uint64_t start = 0;
+// static uint64_t end = 0;
+// start = micros();
+// end = micros();
+// printf("Micros: %010llu\n", end-start);
