@@ -1,5 +1,6 @@
 #include "graphics.h"
-#include "DacESP32.h"
+#include "soc/rtc_io_reg.h"
+#include "soc/sens_reg.h"
 
 // Macros
 #define MAX_LINES       1024
@@ -31,8 +32,8 @@ vec2d_t vec2d_add(vec2d_t vec1, vec2d_t vec2);
 void write_x_pixel(int32_t pos);
 void write_y_pixel(int32_t pos);
 
-DacESP32 dac1((gpio_num_t)X_PIN);
-DacESP32 dac2((gpio_num_t)Y_PIN);
+void write_dac1(uint8_t value);
+void write_dac2(uint8_t value);
 
 line_t lines[MAX_LINES];
 int32_t num_lines = 0;
@@ -212,16 +213,35 @@ void write_x_pixel(int32_t pos)
 {
     if(pos < 0) return;
     if(pos > X_RESOLUTION) return;
-    dac1.outputVoltage((uint8_t)pos);
+    write_dac1((uint8_t)pos);
 }
 
 void write_y_pixel(int32_t pos)
 {
     if(pos < 0) return;
     if(pos > Y_RESOLUTION) return;
-    dac2.outputVoltage((uint8_t)pos);
+    write_dac2((uint8_t)pos);
 }
 
+void write_dac1(uint8_t value)
+{
+    // disable CW generator on channel 1
+    CLEAR_PERI_REG_MASK(SENS_SAR_DAC_CTRL2_REG, SENS_DAC_CW_EN1_M);
+    // enable DAC channel output
+    SET_PERI_REG_MASK(RTC_IO_PAD_DAC1_REG, RTCIO_PAD_PDAC1_MUX_SEL | RTC_IO_PDAC1_XPD_DAC | RTC_IO_PDAC1_DAC_XPD_FORCE);
+    // setting DAC output value
+    SET_PERI_REG_BITS(RTC_IO_PAD_DAC1_REG, RTC_IO_PDAC1_DAC, value, RTC_IO_PDAC1_DAC_S);
+}
+
+void write_dac2(uint8_t value)
+{
+    // disable CW generator on channel 2
+    CLEAR_PERI_REG_MASK(SENS_SAR_DAC_CTRL2_REG, SENS_DAC_CW_EN2_M);
+    // enable DAC channel output
+    SET_PERI_REG_MASK(RTC_IO_PAD_DAC2_REG, RTCIO_PAD_PDAC2_MUX_SEL | RTC_IO_PDAC2_XPD_DAC | RTC_IO_PDAC2_DAC_XPD_FORCE);
+    // setting DAC output value
+    SET_PERI_REG_BITS(RTC_IO_PAD_DAC2_REG, RTC_IO_PDAC2_DAC, value, RTC_IO_PDAC2_DAC_S);
+}
 
 
 // static uint64_t start = 0;
