@@ -1,6 +1,0 @@
--------------------------------- PROBLEMS --------------------------------
-- Low pass filters on output mean that trailes are left when jumping between finish and start locations
-- Line drawing code is currently not very good, and is blocking
-
--------------------------------- POTENTIAL CHANGES --------------------------------
-- Upgrade to higher resolution external DAC's
